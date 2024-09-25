@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-secrets-plugin
+  namespace: argocd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-secrets-plugin
+  namespace: argocd
+  labels:
+    app: argocd-secrets-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-secrets-plugin
+  template:
+    metadata:
+      labels:
+        app: argocd-secrets-plugin
+    spec:
+      serviceAccountName: argocd-secrets-plugin
+      serviceAccount: argocd-secrets-plugin
+      containers:
+      - name: argocd-secrets-plugin
+        image: quay.io/vadimzharov/argocd-secrets-plugin:latest
+        ports:
+        - containerPort: 8080
+        env:
+          - name: ARGOCD_PLUGIN_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: argocd-secrets-plugin
+                key: plugin.argocd-secrets-plugin.token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-secrets-plugin
+  namespace: argocd
+spec:
+  selector:
+    app: argocd-secrets-plugin
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+

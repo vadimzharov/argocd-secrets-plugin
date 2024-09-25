@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: plugin-test
+  namespace: argocd
+spec:
+  generators:
+    - plugin:
+        # Specify the configMap where the plugin configuration is located.
+        configMapRef:
+          name: my-plugin
+        input:
+          parameters:
+            secretName: "cluster-secrets"
+  template:
+    metadata:
+      name: 'plugin-nginx'
+    spec:
+      destination:
+        namespace: ingress-nginx-appset
+        server: '{{server}}'
+      project: default
+      sources:
+        - chart: ingress-nginx
+          helm:
+            releaseName: nginx
+            values: |
+              controller:
+                service:
+                  enabled: true
+                  loadBalancerIP: {{lbip}}
+                ingressClassResource:
+                  default: false
+          repoURL: https://kubernetes.github.io/ingress-nginx
+          targetRevision: 4.11.2
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

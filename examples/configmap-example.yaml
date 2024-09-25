@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-plugin
+  namespace: argocd
+data:
+  baseUrl: http://argocd-secrets-plugin:8080
+  requestTimeout: '60'
+  token: $plugin.myplugin.token
