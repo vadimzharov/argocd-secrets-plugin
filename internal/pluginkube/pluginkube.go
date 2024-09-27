@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -25,7 +26,9 @@ func ReadSecret(clientset *kubernetes.Clientset, namespace, secretName string) (
 	decodedSecret := make(map[string]string)
 	for key, value := range secret.Data {
 		//decodedSecret[key] = base64.StdEncoding.EncodeToString(value)
-		decodedSecret[key] = string(value)
+		deckey := strings.ReplaceAll(key, ".", "-")
+		decodedSecret[deckey] = string(value)
+
 	}
 
 	return decodedSecret, nil
