@@ -26,7 +26,7 @@ func ReadSecret(clientset *kubernetes.Clientset, namespace, secretName string) (
 	decodedSecret := make(map[string]string)
 	for key, value := range secret.Data {
 		//decodedSecret[key] = base64.StdEncoding.EncodeToString(value)
-		deckey := strings.ReplaceAll(key, ".", "-")
+		deckey := strings.ReplaceAll(key, ".", "_")
 		decodedSecret[deckey] = string(value)
 
 	}
