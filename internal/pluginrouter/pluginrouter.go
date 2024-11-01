@@ -17,11 +17,24 @@ type RequestPayload struct {
 	ApplicationSetName string `json:"applicationSetName"`
 	Input              struct {
 		Parameters struct {
-			SecretName    string                 `json:"secretName"`
-			NamespaceName string                 `json:"namespaceName"`
-			Other         map[string]interface{} `json:"-"`
+			SecretName      string                 `json:"secretName"`
+			NamespaceName   string                 `json:"namespaceName"`
+			ConvertToGoVars interface{}            `json:"convertToGoVars,omitempty"`
+			Other           map[string]interface{} `json:"-"`
 		} `json:"parameters"`
 	} `json:"input"`
+}
+
+// ConvertToBoolean converts a string or boolean to a boolean value
+func ConvertToBoolean(value interface{}) bool {
+	switch v := value.(type) {
+	case string:
+		return strings.ToLower(v) == "true"
+	case bool:
+		return v
+	default:
+		return false
+	}
 }
 
 // ResponsePayload represents the structure of the response
@@ -75,7 +88,13 @@ func RouterSet(clientset *kubernetes.Clientset) {
 			return
 		}
 
+		convertToGoVars := ConvertToBoolean(requestPayload.Input.Parameters.ConvertToGoVars)
+
 		log.Printf("Received request for applicationSetName: %s to read from secret %s", requestPayload.ApplicationSetName, requestPayload.Input.Parameters.SecretName)
+
+		if convertToGoVars {
+			log.Printf("ConvertToGoVars set to True, secret key names will be changed to Golang format")
+		}
 
 		secretName := requestPayload.Input.Parameters.SecretName
 
@@ -89,7 +108,7 @@ func RouterSet(clientset *kubernetes.Clientset) {
 		}
 
 		// Read the secret
-		secret, err := pluginkube.ReadSecret(pluginkube.KubeClientSet(), namespace, secretName)
+		secret, err := pluginkube.ReadSecret(pluginkube.KubeClientSet(), namespace, secretName, convertToGoVars)
 		if err != nil {
 			fmt.Printf("failed to get secret: %v", err)
 

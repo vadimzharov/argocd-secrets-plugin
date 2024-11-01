@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
+	"unicode"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -14,8 +16,25 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// sanitizeVariableName takes a string and converts it into a valid Go variable name
+func sanitizeVariableName(input string) string {
+	// Replace invalid characters (anything not alphanumeric or "_") with "-"
+	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	sanitized := re.ReplaceAllString(input, "-")
+
+	// If the name starts with a digit, prepend an underscore to make it valid
+	if len(sanitized) > 0 && unicode.IsDigit(rune(sanitized[0])) {
+		sanitized = "_" + sanitized
+	}
+
+	// Replace any remaining underscores with dashes
+	sanitized = strings.ReplaceAll(sanitized, "_", "-")
+
+	return sanitized
+}
+
 // ReadSecret reads a Kubernetes secret from the given namespace and name.
-func ReadSecret(clientset *kubernetes.Clientset, namespace, secretName string) (map[string]string, error) {
+func ReadSecret(clientset *kubernetes.Clientset, namespace, secretName string, convertToGoVars bool) (map[string]string, error) {
 	// Get the secret
 	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
@@ -25,9 +44,14 @@ func ReadSecret(clientset *kubernetes.Clientset, namespace, secretName string) (
 	// Decode the secret data
 	decodedSecret := make(map[string]string)
 	for key, value := range secret.Data {
-		//decodedSecret[key] = base64.StdEncoding.EncodeToString(value)
-		deckey := strings.ReplaceAll(key, ".", "_")
-		decodedSecret[deckey] = string(value)
+
+		if convertToGoVars {
+			sanitizedKey := sanitizeVariableName(key)
+			decodedSecret[sanitizedKey] = string(value)
+		} else {
+			//decodedSecret[key] = base64.StdEncoding.EncodeToString(value)
+			decodedSecret[key] = string(value)
+		}
 
 	}
 
@@ -42,7 +66,6 @@ func KubeClientSet() *kubernetes.Clientset {
 	// Otherwise work using in cluster config
 
 	var clientset *kubernetes.Clientset
-	//kubeconfig = "/Users/vadim/my-stuff/github/argocd-appsets-secret-plugin/kubeconfig"
 
 	if kubeconfigEnv := os.Getenv("LOCAL_KUBECONFIG"); kubeconfigEnv != "" {
 		// Load kubeconfig
