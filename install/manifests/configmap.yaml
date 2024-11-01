@@ -6,4 +6,4 @@ metadata:
 data:
   baseUrl: http://argocd-secrets-plugin.argocd.svc.cluster.local:8080
   requestTimeout: '60'
-  token: $plugin.argocd-secrets-plugin.token
+  token: $argocd-secrets-plugin:plugin.argocd-secrets-plugin.token
