@@ -42,7 +42,6 @@ func KubeClientSet() *kubernetes.Clientset {
 	// Otherwise work using in cluster config
 
 	var clientset *kubernetes.Clientset
-	//kubeconfig = "/Users/vadim/my-stuff/github/argocd-appsets-secret-plugin/kubeconfig"
 
 	if kubeconfigEnv := os.Getenv("LOCAL_KUBECONFIG"); kubeconfigEnv != "" {
 		// Load kubeconfig
