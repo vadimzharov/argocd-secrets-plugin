@@ -7,10 +7,10 @@ This is the simple [generator](https://argo-cd.readthedocs.io/en/stable/operator
 To understand the installation process, read the [official ArgoCD ApplicationSets plugin guide](https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Plugin/#add-a-configmap-to-configure-the-access-of-the-plugin)
 
 Manifests to deploy and configure the plugin are in [install/manifests](install/manifests/) folder:
-* `configmap.yaml` - ConfigMap with plugin configuration. Name of this ConfigMap needs to be referenced in ApplicationSet
-* `secret.yaml` - Secret with token ArgoCD use to connect to the plugin API. Update value in this secret before applying the manifest. This value is referenced in plugin deploymen (`deployment.yaml`, `ARGOCD_PLUGIN_TOKEN` environment variable) and in ConfigMap with plugin configuration
-* `deployment.yaml` - manifets to create Service Account, Deployment and Service. The Service account is referenced in plugin deployment, and this service account **must** have permissions to *get* (read content of) K8S secrets - this is configured by `rbac.yaml` manifest. 
-* `rbac.yaml` - manifests to configure Role and RoleBinding for plugin service account so it can *get* secrets in ArgoCD namespace (`argocd`). This is the default configuration, Role/RoleBinding can be modified so the Service account *get* secrets in any other namespace (see **Usage** part how to reference namespace other than `argocd` in ApplicationSet)
+* `configmap.yaml` - K8S ConfigMap with plugin configuration. The ConfigMap is not to configure the plugin - name of this ConfigMap needs to be referenced in an ApplicationSet. ConfigMap contains plugin URL, request timeout value and reference to a K8S secret with authentication token (ArgoCD uses this token to authenticate all requiests to the plugin).
+* `secret.yaml` - K8S Secret with token. ArgoCD use the token to connect to the plugin API. **Update value in this secret before applying the manifest.** This value is referenced in the plugin deployment (`deployment.yaml`, `ARGOCD_PLUGIN_TOKEN` environment variable) and in the ConfigMap with plugin configuration.
+* `deployment.yaml` - manifets to create Service Account, Deployment and Service to run the plugin. The Service account is referenced in the plugin deployment, and this service account **must** have permissions to *get* (read content of) K8S secrets - this is configured by `rbac.yaml` manifest. 
+* `rbac.yaml` - manifests to configure Role and RoleBinding for the plugin Service Account so it can *get* secrets in ArgoCD namespace (`argocd`). This is the default configuration, Role/RoleBinding can be modified so the Service account *get* secrets in any other namespace (see **Usage** part how to reference namespace other than `argocd` in ApplicationSet).
 
 
 To install the plugin:
@@ -20,13 +20,13 @@ To install the plugin:
 3. Update secret `argo-secrets-sync` in "secret.yaml" file, key `plugin.argo-secrets-sync.token` with some random string
 4. Deploy all manifests by executing `kubectl apply -f install/manifests/`
 
-This will install the plugin in default configuration - in `argocd` namespace with permissions for the plugin to read all secrets in `argocd` namespace.
+This will install the plugin in the default configuration - in `argocd` namespace with permissions for the plugin to read all secrets in `argocd` namespace.
 
 ### Usage
 
-As an input parameter (`secretName`) plugin requires name of the secret in `argocd` namespace. Then, during ApplicationSet processing, plugin reads all key/value pairs from this secret and passes it to ArgoCD. Users need to reference secret key as `{{ <keyname> }}` in the ApplicationSet manifest - and then ArgoCD replace it with key value during Application template processing.
+As an input parameter (`secretName`) plugin requires name of the secret in `argocd` namespace. Then, during ApplicationSet processing, plugin reads **all** key/value pairs from this secret and passes it to ArgoCD. Users need to reference secret key as `{{ <keyname> }}` in the ApplicationSet manifest - and then ArgoCD replaces it with key value during Application template processing.
 
-For example, if the generator is set to read from secret `my-super-secret` in the ApplicationSet manifest - then key named `my-variable` can be used in Application template:
+For example, if the generator is set to read from secret `my-super-secret` in the ApplicationSet manifest - then key named `my-variable` can be used in an Application template:
 ```
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -60,7 +60,7 @@ metadata:
               controller:
                 service:
                   enabled: true
-                  loadBalancerIP: {{ my-variable }}  # If secret has key my-super-secret - then this will be replaced with value
+                  loadBalancerIP: {{ my-variable }}  # If secret has key my-variable - then this will be replaced with value
                 ingressClassResource:
                   default: false
           repoURL: https://kubernetes.github.io/ingress-nginx
@@ -86,9 +86,9 @@ Then, if K8S secret `my-super-secret` have key `my-variable` set to `192.168.1.1
 
 ### Simple use-case example - use values from secret in ApplicationSet
 
-Assume we need to deploy Nginx application (based on ) with ArgoCD where we don't want to store Nginx LoadBalancer IP inside Git repo, but rather want for ArgoCD to set this parameter from K8S secret.
+Assume we need to deploy Nginx application (based on Nginx Helm chart)  with ArgoCD where we don't want to store Nginx LoadBalancer IP inside Git repo, but rather want for ArgoCD to set this parameter from K8S secret.
 
-Create secret with the key/value:
+Create a secret with the key/value:
 ```
 apiVersion: v1
 kind: Secret
@@ -97,7 +97,6 @@ metadata:
   namespace: argocd
 stringData:
   lbip: 192.168.1.1
-type: kubernetes.io/basic-auth
 ```
 
 
@@ -116,6 +115,7 @@ spec:
           name: my-plugin
         input:
           parameters:
+          # Specify the the secret with keys/values we need to use inside Application template
             secretName: "cluster-secrets"
   template:
     metadata:
@@ -133,6 +133,7 @@ spec:
               controller:
                 service:
                   enabled: true
+                  # The plugin reads secret "cluster-secrets" and if contains key "lbip" replaces lbip variable with value from the secret
                   loadBalancerIP: {{ lbip }}
                 ingressClassResource:
                   default: false
@@ -153,7 +154,7 @@ This is the use-case I've created this plugin for - to be able to manage multipl
 
 For example, assuming ArgoCD is managing two clusters named `clusterone` and `clustertwo`, and the requirement is to deploy nginx ingress controller via Helm chart, where `clusterone` must use LoadBalancer IP `192.168.1.1` and `clustertwo` must use LoadBalancer IP `192.168.100.100`.
 
-Create secret vith LoadBalancer IP for `clusterone`:
+Create a secret vith LoadBalancer IP for `clusterone` so the name of the secret contains name of the cluster in ArgoCD (`clusterone`):
 
 ```
 apiVersion: v1
